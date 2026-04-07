@@ -1,531 +1,1972 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Stark Brain - Neural Map</title>
-    <script type="text/javascript" src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
-    <style>
-        /* Variáveis de Tema: Estilo Cyber/Glassmorphism */
-        :root {
-            --bg-space: #050508;
-            --glass-bg: rgba(20, 22, 30, 0.6);
-            --glass-border: rgba(255, 255, 255, 0.08);
-            --glass-blur: blur(16px);
-            --text-main: #e2e8f0;
-            --text-muted: #64748b;
-            --accent-glow: #38bdf8;
-            --danger: #ef4444;
-        }
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>MindMap Studio</title>
+<style>
+  :root {
+    --bg-primary: #0f1117;
+    --bg-secondary: #1a1d2e;
+    --bg-tertiary: #252840;
+    --bg-card: #1e2139;
+    --text-primary: #e0e0e0;
+    --text-secondary: #8b8fa3;
+    --text-muted: #555a7a;
+    --accent: #6c5ce7;
+    --accent-hover: #7d6ff0;
+    --accent-glow: rgba(108, 92, 231, 0.3);
+    --node-blue: #5b9aff;
+    --node-orange: #ffa845;
+    --node-green: #51cf66;
+    --node-red: #ff6b6b;
+    --node-purple: #cc5de8;
+    --node-yellow: #ffd43b;
+    --border: #2a2d42;
+    --shadow: rgba(0,0,0,0.4);
+    --danger: #ff4757;
+    --success: #2ed573;
+    --warning: #ffa502;
+  }
 
-        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Roboto, Helvetica, sans-serif; -webkit-tap-highlight-color: transparent; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
 
-        body {
-            background-color: var(--bg-space);
-            background-image: radial-gradient(circle at 50% 0%, #101524 0%, var(--bg-space) 70%);
-            color: var(--text-main);
-            line-height: 1.6;
-            overflow: hidden; /* Evita scroll no body, o canvas faz o trabalho */
-            height: 100vh;
-            width: 100vw;
-        }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    overflow: hidden;
+    height: 100vh;
+    width: 100vw;
+    touch-action: none;
+  }
 
-        /* --- VISÃO 1: PASTAS (COFRE) --- */
-        #homeView {
-            height: 100%; overflow-y: auto; padding: 40px 20px; max-width: 1200px; margin: 0 auto;
-        }
+  #app {
+    display: flex;
+    height: 100vh;
+    width: 100vw;
+    position: relative;
+  }
 
-        header {
-            display: flex; justify-content: space-between; align-items: center;
-            margin-bottom: 50px;
-        }
+  /* Sidebar */
+  .sidebar {
+    width: 280px;
+    min-width: 280px;
+    background: var(--bg-secondary);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    z-index: 100;
+    transition: transform 0.3s ease;
+  }
 
-        h2 { font-size: 2rem; font-weight: 300; letter-spacing: 1px; color: #fff; }
+  .sidebar-header {
+    padding: 16px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
 
-        .btn {
-            background: var(--glass-bg); backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur);
-            border: 1px solid var(--glass-border); color: var(--text-main);
-            padding: 12px 24px; border-radius: 30px; cursor: pointer; font-size: 14px; font-weight: 500;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); display: inline-flex; align-items: center; justify-content: center; gap: 8px;
-        }
-        .btn:hover { background: rgba(56, 189, 248, 0.1); border-color: var(--accent-glow); box-shadow: 0 0 15px rgba(56, 189, 248, 0.2); transform: translateY(-2px); }
-        .btn:active { transform: translateY(0); }
-        .btn.primary { background: rgba(56, 189, 248, 0.15); border-color: rgba(56, 189, 248, 0.4); color: #fff; }
-        .btn.danger { background: rgba(239, 68, 68, 0.1); border-color: rgba(239, 68, 68, 0.3); color: var(--danger); }
+  .sidebar-header h1 {
+    font-size: 18px;
+    font-weight: 700;
+    background: linear-gradient(135deg, var(--accent), var(--node-blue));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
 
-        #foldersGrid {
-            display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 24px;
-        }
+  .sidebar-header .logo {
+    width: 28px;
+    height: 28px;
+    background: var(--accent);
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+  }
 
-        .folder-card {
-            background: var(--glass-bg); backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur);
-            border: 1px solid var(--glass-border); border-radius: 20px; padding: 30px 24px;
-            cursor: pointer; transition: all 0.4s ease; position: relative; overflow: hidden;
-            display: flex; flex-direction: column; justify-content: space-between; min-height: 160px;
-        }
-        .folder-card::before {
-            content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 2px;
-            background: linear-gradient(90deg, transparent, var(--accent-glow), transparent); opacity: 0; transition: opacity 0.4s;
-        }
-        .folder-card:hover { transform: translateY(-5px); border-color: rgba(255,255,255,0.2); box-shadow: 0 20px 40px rgba(0,0,0,0.4); }
-        .folder-card:hover::before { opacity: 1; }
-        
-        .folder-card h3 { font-size: 1.4rem; font-weight: 400; margin-bottom: 8px; }
-        .folder-stats { font-size: 0.9rem; color: var(--accent-glow); opacity: 0.8; }
-        
-        .card-actions { margin-top: 20px; display: flex; justify-content: flex-end; gap: 10px; }
-        .card-actions .btn { padding: 8px 16px; font-size: 12px; border-radius: 12px; }
+  .sidebar-actions {
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
 
-        /* --- VISÃO 2: MAPA MENTAL (GRAFO) --- */
-        #graphContainer {
-            display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
-        }
-        #mynetwork { width: 100%; height: 100%; outline: none; }
-        
-        /* Top Bar */
-        .graph-header {
-            position: absolute; top: 0; left: 0; width: 100%; padding: 20px; z-index: 10;
-            display: flex; justify-content: space-between; align-items: center;
-            background: linear-gradient(to bottom, rgba(5,5,8,0.8), transparent); pointer-events: none;
-        }
-        .graph-header .btn { pointer-events: auto; }
-        .graph-title { font-size: 1.2rem; font-weight: 300; opacity: 0.8; }
+  .btn {
+    padding: 8px 12px;
+    border: none;
+    border-radius: 8px;
+    font-size: 13px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.2s ease;
+    font-family: inherit;
+    color: var(--text-primary);
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border);
+  }
 
-        /* Status de Ação (Avisa quando está em modo de conectar) */
-        #actionStatus {
-            position: absolute; top: 80px; left: 50%; transform: translateX(-50%);
-            background: rgba(56, 189, 248, 0.2); border: 1px solid var(--accent-glow);
-            padding: 8px 20px; border-radius: 20px; font-size: 13px; color: #fff;
-            opacity: 0; transition: opacity 0.3s; z-index: 10; pointer-events: none;
-        }
+  .btn:hover { background: var(--accent); border-color: var(--accent); }
+  .btn:active { transform: scale(0.97); }
 
-        /* Bottom Dock (Mobile Friendly) */
-        .dock {
-            position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%); z-index: 20;
-            background: var(--glass-bg); backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur);
-            border: 1px solid var(--glass-border); padding: 12px; border-radius: 30px;
-            display: flex; gap: 12px; box-shadow: 0 10px 40px rgba(0,0,0,0.5);
-            transition: all 0.3s;
-        }
+  .btn-primary {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: white;
+  }
+  .btn-primary:hover { background: var(--accent-hover); }
 
-        .dock .btn { padding: 14px 24px; border-radius: 20px; font-size: 15px; }
-        .dock .btn svg { width: 18px; height: 18px; fill: currentColor; }
-        
-        /* Esconder controles de edição até que um nó seja selecionado */
-        .context-tools { display: none; gap: 12px; border-left: 1px solid var(--glass-border); padding-left: 12px; }
+  .btn-danger { color: var(--danger); }
+  .btn-danger:hover { background: var(--danger); color: white; }
 
-        /* --- MODAIS EFEITO GLASS --- */
-        .modal-overlay {
-            display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0;
-            background: rgba(0,0,0,0.6); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
-            z-index: 100; align-items: center; justify-content: center; padding: 20px;
-        }
-        
-        .modal {
-            background: rgba(20, 22, 30, 0.8); border: 1px solid rgba(255,255,255,0.1);
-            padding: 30px; border-radius: 24px; width: 100%; max-width: 420px;
-            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5); transform: translateY(20px); opacity: 0;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-        .modal.show { transform: translateY(0); opacity: 1; }
-        
-        .modal h3 { font-weight: 300; margin-bottom: 25px; font-size: 1.5rem; }
-        
-        .input-group { position: relative; margin-bottom: 25px; }
-        .input-group input {
-            width: 100%; background: rgba(0,0,0,0.3); border: 1px solid var(--glass-border);
-            padding: 16px 20px; border-radius: 16px; color: #fff; font-size: 16px; outline: none; transition: border 0.3s;
-        }
-        .input-group input:focus { border-color: var(--accent-glow); }
-        
-        .modal-buttons { display: flex; justify-content: flex-end; gap: 12px; }
+  .btn-small {
+    padding: 4px 8px;
+    font-size: 11px;
+  }
 
-        /* Ajustes Mobile */
-        @media (max-width: 768px) {
-            .dock { width: 90%; justify-content: space-between; padding: 10px; bottom: 20px; }
-            .dock .btn { padding: 12px 16px; font-size: 14px; flex: 1; }
-            .context-tools { border-left: none; padding-left: 0; width: 100%; position: absolute; bottom: 100%; left: 0; margin-bottom: 15px; justify-content: center; }
-            .modal { align-self: flex-end; border-radius: 30px 30px 0 0; margin-bottom: -20px; padding-bottom: 50px; }
-        }
-        
-        .hidden { display: none !important; }
-    </style>
+  .btn-icon {
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+    font-size: 16px;
+  }
+
+  .folders-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px;
+  }
+
+  .folders-list::-webkit-scrollbar { width: 4px; }
+  .folders-list::-webkit-scrollbar-track { background: transparent; }
+  .folders-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+  .folder-item {
+    padding: 10px 12px;
+    border-radius: 8px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    transition: all 0.2s;
+    margin-bottom: 2px;
+    user-select: none;
+  }
+
+  .folder-item:hover { background: var(--bg-tertiary); }
+  .folder-item.active { background: var(--accent); color: white; }
+  .folder-item.active .folder-count { color: rgba(255,255,255,0.7); }
+
+  .folder-name {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 1;
+    min-width: 0;
+  }
+
+  .folder-icon { font-size: 16px; flex-shrink: 0; }
+
+  .folder-label {
+    font-size: 13px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .folder-count {
+    font-size: 11px;
+    color: var(--text-muted);
+    flex-shrink: 0;
+  }
+
+  .folder-actions {
+    display: flex;
+    gap: 2px;
+    opacity: 0;
+    transition: opacity 0.2s;
+  }
+
+  .folder-item:hover .folder-actions { opacity: 1; }
+  .folder-item.active .folder-actions { opacity: 1; }
+
+  .folder-actions button {
+    background: none;
+    border: none;
+    color: inherit;
+    cursor: pointer;
+    padding: 2px 4px;
+    font-size: 12px;
+    opacity: 0.6;
+    border-radius: 4px;
+  }
+  .folder-actions button:hover { opacity: 1; background: rgba(255,255,255,0.1); }
+
+  .sidebar-footer {
+    padding: 12px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    gap: 6px;
+  }
+
+  .sidebar-footer .btn { flex: 1; justify-content: center; font-size: 12px; }
+
+  /* Canvas Area */
+  .canvas-area {
+    flex: 1;
+    position: relative;
+    overflow: hidden;
+    background: var(--bg-primary);
+  }
+
+  .canvas-bg {
+    position: absolute;
+    inset: 0;
+    background-image:
+      radial-gradient(circle at 1px 1px, rgba(255,255,255,0.03) 1px, transparent 0);
+    background-size: 30px 30px;
+  }
+
+  #graphCanvas {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    cursor: grab;
+  }
+  #graphCanvas:active { cursor: grabbing; }
+
+  /* Toolbar */
+  .toolbar {
+    position: absolute;
+    top: 12px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 6px;
+    padding: 6px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    z-index: 50;
+    box-shadow: 0 4px 20px var(--shadow);
+  }
+
+  .toolbar .btn {
+    padding: 6px 10px;
+    font-size: 12px;
+    border-radius: 8px;
+  }
+
+  .toolbar .separator {
+    width: 1px;
+    background: var(--border);
+    margin: 2px 4px;
+  }
+
+  /* Mobile bottom bar */
+  .mobile-bar {
+    display: none;
+    position: absolute;
+    bottom: 12px;
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 8px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    z-index: 50;
+    box-shadow: 0 4px 20px var(--shadow);
+    gap: 4px;
+  }
+
+  .mobile-bar .btn-icon {
+    width: 40px;
+    height: 40px;
+    font-size: 18px;
+  }
+
+  /* Node detail panel */
+  .detail-panel {
+    position: absolute;
+    right: 12px;
+    top: 60px;
+    width: 260px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    z-index: 50;
+    box-shadow: 0 4px 20px var(--shadow);
+    padding: 16px;
+    display: none;
+  }
+
+  .detail-panel.visible { display: block; }
+
+  .detail-panel h3 {
+    font-size: 14px;
+    margin-bottom: 12px;
+    color: var(--text-secondary);
+  }
+
+  .detail-panel input, .detail-panel textarea {
+    width: 100%;
+    padding: 8px 10px;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text-primary);
+    font-size: 13px;
+    font-family: inherit;
+    margin-bottom: 8px;
+    outline: none;
+  }
+
+  .detail-panel input:focus, .detail-panel textarea:focus {
+    border-color: var(--accent);
+  }
+
+  .detail-panel textarea { resize: vertical; min-height: 60px; }
+
+  .detail-panel .color-picker {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 12px;
+    flex-wrap: wrap;
+  }
+
+  .color-dot {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    cursor: pointer;
+    border: 2px solid transparent;
+    transition: all 0.2s;
+  }
+  .color-dot:hover, .color-dot.selected { border-color: white; transform: scale(1.15); }
+
+  .detail-actions {
+    display: flex;
+    gap: 6px;
+    margin-top: 8px;
+  }
+  .detail-actions .btn { flex: 1; justify-content: center; }
+
+  /* Modal */
+  .modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.6);
+    z-index: 200;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+  }
+  .modal-overlay.visible { display: flex; }
+
+  .modal {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 24px;
+    width: 100%;
+    max-width: 400px;
+    box-shadow: 0 20px 60px var(--shadow);
+  }
+
+  .modal h2 {
+    font-size: 18px;
+    margin-bottom: 16px;
+  }
+
+  .modal input {
+    width: 100%;
+    padding: 10px 12px;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text-primary);
+    font-size: 14px;
+    font-family: inherit;
+    outline: none;
+    margin-bottom: 16px;
+  }
+  .modal input:focus { border-color: var(--accent); }
+
+  .modal-actions {
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+  }
+
+  .modal-actions .btn { padding: 8px 16px; }
+
+  /* Toast */
+  .toast-container {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    z-index: 300;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .toast {
+    padding: 10px 16px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    font-size: 13px;
+    box-shadow: 0 4px 15px var(--shadow);
+    animation: toastIn 0.3s ease, toastOut 0.3s ease 2.7s forwards;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .toast.success { border-left: 3px solid var(--success); }
+  .toast.error { border-left: 3px solid var(--danger); }
+  .toast.info { border-left: 3px solid var(--accent); }
+
+  @keyframes toastIn { from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: translateX(0); } }
+  @keyframes toastOut { from { opacity: 1; } to { opacity: 0; transform: translateX(20px); } }
+
+  /* Mobile hamburger */
+  .hamburger {
+    display: none;
+    position: absolute;
+    top: 12px;
+    left: 12px;
+    z-index: 150;
+    width: 36px;
+    height: 36px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    cursor: pointer;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    color: var(--text-primary);
+  }
+
+  .sidebar-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.5);
+    z-index: 99;
+  }
+
+  /* Zoom controls */
+  .zoom-controls {
+    position: absolute;
+    bottom: 12px;
+    right: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    z-index: 50;
+  }
+
+  .zoom-controls .btn-icon {
+    width: 32px;
+    height: 32px;
+    font-size: 16px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text-primary);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .zoom-controls .btn-icon:hover { background: var(--accent); }
+
+  .zoom-label {
+    text-align: center;
+    font-size: 10px;
+    color: var(--text-muted);
+    padding: 2px;
+  }
+
+  /* Context menu */
+  .context-menu {
+    position: fixed;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 6px;
+    z-index: 250;
+    box-shadow: 0 8px 30px var(--shadow);
+    display: none;
+    min-width: 160px;
+  }
+  .context-menu.visible { display: block; }
+
+  .context-menu-item {
+    padding: 8px 12px;
+    font-size: 13px;
+    cursor: pointer;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--text-primary);
+    transition: background 0.15s;
+  }
+  .context-menu-item:hover { background: var(--accent); }
+  .context-menu-item.danger { color: var(--danger); }
+  .context-menu-item.danger:hover { background: var(--danger); color: white; }
+  .context-menu-divider { height: 1px; background: var(--border); margin: 4px 0; }
+
+  /* Empty state */
+  .empty-state {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-muted);
+    pointer-events: none;
+  }
+  .empty-state .icon { font-size: 48px; margin-bottom: 12px; }
+  .empty-state p { font-size: 14px; }
+
+  /* Responsive */
+  @media (max-width: 768px) {
+    .sidebar {
+      position: fixed;
+      left: 0;
+      top: 0;
+      height: 100%;
+      transform: translateX(-100%);
+      z-index: 200;
+      width: 300px;
+      min-width: 300px;
+    }
+    .sidebar.open { transform: translateX(0); }
+    .sidebar-overlay.visible { display: block; }
+    .hamburger { display: flex; }
+    .mobile-bar { display: flex; }
+    .toolbar { top: 60px; }
+    .detail-panel {
+      right: 8px;
+      left: 8px;
+      top: auto;
+      bottom: 80px;
+      width: auto;
+    }
+    .zoom-controls { bottom: 80px; right: 8px; }
+  }
+
+  @media (max-width: 480px) {
+    .sidebar { width: 100%; min-width: 100%; }
+    .toolbar { flex-wrap: wrap; max-width: 95vw; }
+  }
+
+  /* Animations */
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+  }
+
+  .saving-indicator {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    font-size: 11px;
+    color: var(--text-muted);
+    z-index: 50;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .saving-indicator .dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--success);
+    animation: pulse 2s infinite;
+  }
+
+  .search-box {
+    padding: 8px 12px;
+    margin: 8px;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text-primary);
+    font-size: 13px;
+    width: calc(100% - 16px);
+    outline: none;
+    font-family: inherit;
+  }
+  .search-box:focus { border-color: var(--accent); }
+
+  .stats-bar {
+    padding: 8px 12px;
+    font-size: 11px;
+    color: var(--text-muted);
+    border-top: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+  }
+</style>
 </head>
 <body>
+<div id="app">
+  <!-- Hamburger for mobile -->
+  <button class="hamburger" id="hamburgerBtn" title="Menu">☰</button>
+  <div class="sidebar-overlay" id="sidebarOverlay"></div>
 
-    <div id="homeView">
-        <header>
-            <h2>Neural Cofre</h2>
-            <button class="btn primary" onclick="openFolderModal()">+ Nova Estrutura</button>
-        </header>
-        <div id="foldersGrid"></div>
+  <!-- Sidebar -->
+  <div class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+      <div class="logo">🧠</div>
+      <h1>MindMap Studio</h1>
+    </div>
+    <div class="sidebar-actions">
+      <button class="btn btn-primary" onclick="createFolder()">
+        <span>📁</span> Nova Pasta
+      </button>
+    </div>
+    <input type="text" class="search-box" placeholder="Buscar pastas..." oninput="filterFolders(this.value)">
+    <div class="folders-list" id="foldersList"></div>
+    <div class="stats-bar" id="statsBar">
+      <span id="statsNodes">0 nós</span>
+      <span id="statsEdges">0 conexões</span>
+    </div>
+    <div class="sidebar-footer">
+      <button class="btn" onclick="exportBackup()" title="Exportar Backup">
+        <span>📤</span> Exportar
+      </button>
+      <button class="btn" onclick="importBackup()" title="Importar Backup">
+        <span>📥</span> Importar
+      </button>
+    </div>
+  </div>
+
+  <!-- Canvas Area -->
+  <div class="canvas-area" id="canvasArea">
+    <div class="canvas-bg"></div>
+    <canvas id="graphCanvas"></canvas>
+
+    <!-- Toolbar -->
+    <div class="toolbar" id="toolbar">
+      <button class="btn" onclick="addNode()" title="Adicionar nó (N)">
+        <span>➕</span> Nó
+      </button>
+      <button class="btn" onclick="startConnectionMode()" title="Conectar (C)">
+        <span>🔗</span> Conectar
+      </button>
+      <div class="separator"></div>
+      <button class="btn" onclick="togglePhysics()" title="Física">
+        <span id="physicsIcon">⚡</span>
+      </button>
+      <button class="btn" onclick="centerGraph()" title="Centralizar">
+        <span>🎯</span>
+      </button>
+      <button class="btn" onclick="exportFolderJSON()" title="Exportar mapa">
+        <span>💾</span>
+      </button>
     </div>
 
-    <div id="graphContainer">
-        <div class="graph-header">
-            <button class="btn" onclick="goHome()">← Voltar</button>
-            <div class="graph-title" id="graphTitle">Nome da Pasta</div>
-            <div style="width: 80px;"></div> </div>
-
-        <div id="actionStatus">Arraste de um nó para o outro</div>
-        <div id="mynetwork"></div>
-
-        <div class="dock" id="mainDock">
-            <button class="btn primary" id="btnAddNode" onclick="openNodeModal()">+ Nova Ideia</button>
-            <button class="btn" id="btnEdgeMode" onclick="toggleEdgeMode()">Conectar Nós</button>
-            
-            <div class="context-tools" id="contextTools">
-                <button class="btn" onclick="editSelectedNode()">Editar</button>
-                <button class="btn danger" onclick="deleteSelected()">Deletar</button>
-            </div>
-        </div>
+    <!-- Saving indicator -->
+    <div class="saving-indicator" id="savingIndicator" style="display:none;">
+      <div class="dot"></div>
+      Salvando...
     </div>
 
-    <div id="modalFolder" class="modal-overlay">
-        <div class="modal" id="modalFolderBox">
-            <h3 id="folderModalTitle">Inicializar Neural</h3>
-            <input type="hidden" id="folderId">
-            <div class="input-group">
-                <input type="text" id="folderName" placeholder="Título (Ex: Projeto X)" autocomplete="off">
-            </div>
-            <div class="modal-buttons">
-                <button class="btn" onclick="closeModals()">Cancelar</button>
-                <button class="btn primary" onclick="saveFolder()">Construir</button>
-            </div>
-        </div>
+    <!-- Detail Panel -->
+    <div class="detail-panel" id="detailPanel">
+      <h3>✏️ Editar Nó</h3>
+      <input type="text" id="nodeNameInput" placeholder="Nome do nó" oninput="updateNodeName()">
+      <textarea id="nodeDescInput" placeholder="Descrição (opcional)" oninput="updateNodeDesc()"></textarea>
+      <label style="font-size:12px;color:var(--text-secondary);margin-bottom:6px;display:block;">Cor:</label>
+      <div class="color-picker" id="colorPicker"></div>
+      <div class="detail-actions">
+        <button class="btn btn-danger" onclick="deleteSelectedNode()">🗑️ Excluir</button>
+        <button class="btn" onclick="archiveSelectedNode()">📦 Arquivar</button>
+        <button class="btn" onclick="closeDetail()">✖</button>
+      </div>
     </div>
 
-    <div id="modalNode" class="modal-overlay">
-        <div class="modal" id="modalNodeBox">
-            <h3 id="nodeModalTitle">Inserir Conceito</h3>
-            <input type="hidden" id="nodeId">
-            <div class="input-group">
-                <input type="text" id="nodeLabel" placeholder="Digite a ideia central..." autocomplete="off">
-            </div>
-            <div class="modal-buttons">
-                <button class="btn" onclick="closeModals()">Cancelar</button>
-                <button class="btn primary" onclick="saveNode()">Injetar</button>
-            </div>
-        </div>
+    <!-- Zoom Controls -->
+    <div class="zoom-controls">
+      <button class="btn-icon" onclick="zoomIn()" title="Zoom In">+</button>
+      <div class="zoom-label" id="zoomLabel">100%</div>
+      <button class="btn-icon" onclick="zoomOut()" title="Zoom Out">−</button>
+      <button class="btn-icon" onclick="resetZoom()" title="Reset Zoom" style="font-size:12px;margin-top:4px;">⟳</button>
     </div>
 
-    <script>
-        // --- DADOS E ESTADO ---
-        const DB_KEY = 'stark_brain_data';
-        let appData = JSON.parse(localStorage.getItem(DB_KEY)) || { folders: [] };
-        let activeFolderId = null;
-        
-        let network = null;
-        let nodesDataset = null;
-        let edgesDataset = null;
-        let isConnectingMode = false;
+    <!-- Mobile Bar -->
+    <div class="mobile-bar" id="mobileBar">
+      <button class="btn-icon" onclick="addNode()" title="Adicionar nó">➕</button>
+      <button class="btn-icon" onclick="startConnectionMode()" title="Conectar">🔗</button>
+      <button class="btn-icon" onclick="togglePhysics()" title="Física">⚡</button>
+      <button class="btn-icon" onclick="centerGraph()" title="Centralizar">🎯</button>
+      <button class="btn-icon" onclick="openSidebar()" title="Pastas">📁</button>
+    </div>
 
-        // Injeta dados de exemplo se for a primeira vez
-        if (appData.folders.length === 0) {
-            appData.folders.push({
-                id: 'lab-core', name: 'Arquitetura Core',
-                nodes: [
-                    { id: 'n1', label: 'IA' }, { id: 'n2', label: 'Machine Learning' },
-                    { id: 'n3', label: 'Redes Neurais' }, { id: 'n4', label: 'VPS' }
-                ],
-                edges: [
-                    { id: 'e1', from: 'n1', to: 'n2' }, { id: 'e2', from: 'n2', to: 'n3' }
-                ]
-            });
-            localStorage.setItem(DB_KEY, JSON.stringify(appData));
+    <!-- Empty state -->
+    <div class="empty-state" id="emptyState" style="display:none;">
+      <div class="icon">🗺️</div>
+      <p>Selecione uma pasta ou crie uma nova</p>
+    </div>
+  </div>
+
+  <!-- Context Menu -->
+  <div class="context-menu" id="contextMenu">
+    <div class="context-menu-item" onclick="contextEditNode()">✏️ Editar</div>
+    <div class="context-menu-item" onclick="contextAddChild()">➕ Adicionar filho</div>
+    <div class="context-menu-item" onclick="contextDuplicate()">📋 Duplicar</div>
+    <div class="context-menu-divider"></div>
+    <div class="context-menu-item" onclick="contextArchiveNode()">📦 Arquivar</div>
+    <div class="context-menu-item danger" onclick="contextDeleteNode()">🗑️ Excluir</div>
+  </div>
+
+  <!-- Modal -->
+  <div class="modal-overlay" id="modalOverlay">
+    <div class="modal" id="modal">
+      <h2 id="modalTitle">Título</h2>
+      <input type="text" id="modalInput" placeholder="Digite aqui...">
+      <div class="modal-actions">
+        <button class="btn" onclick="closeModal()">Cancelar</button>
+        <button class="btn btn-primary" id="modalConfirm">Confirmar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Container -->
+  <div class="toast-container" id="toastContainer"></div>
+
+  <!-- Hidden file input for import -->
+  <input type="file" id="fileInput" accept=".json" style="display:none" onchange="handleImport(event)">
+</div>
+
+<script>
+// ============================================
+// MINDMAP STUDIO - Complete Application
+// ============================================
+
+const NODE_COLORS = ['#5b9aff', '#ffa845', '#51cf66', '#ff6b6b', '#cc5de8', '#ffd43b', '#20c997', '#ff8787', '#748ffc', '#69db7c'];
+
+// State
+let state = {
+  folders: [],
+  activeFolderId: null,
+  zoom: 1,
+  panX: 0,
+  panY: 0,
+  physicsEnabled: true,
+  connectionMode: false,
+  selectedNodeId: null,
+  contextNodeId: null,
+  draggingNode: null,
+  dragOffsetX: 0,
+  dragOffsetY: 0,
+  isPanning: false,
+  panStartX: 0,
+  panStartY: 0,
+  lastSaveTime: Date.now(),
+  animFrame: null
+};
+
+// Canvas
+let canvas, ctx, canvasWidth, canvasHeight;
+
+// ============================================
+// INITIALIZATION
+// ============================================
+
+function init() {
+  canvas = document.getElementById('graphCanvas');
+  ctx = canvas.getContext('2d');
+  resizeCanvas();
+
+  loadData();
+
+  if (state.folders.length === 0) {
+    createDefaultFolder();
+  } else if (state.activeFolderId) {
+    const exists = state.folders.find(f => f.id === state.activeFolderId);
+    if (!exists) state.activeFolderId = state.folders[0].id;
+  } else {
+    state.activeFolderId = state.folders[0].id;
+  }
+
+  renderFolders();
+  renderGraph();
+  buildColorPicker();
+  setupEventListeners();
+  animate();
+}
+
+function resizeCanvas() {
+  const area = document.getElementById('canvasArea');
+  const dpr = window.devicePixelRatio || 1;
+  canvasWidth = area.clientWidth;
+  canvasHeight = area.clientHeight;
+  canvas.width = canvasWidth * dpr;
+  canvas.height = canvasHeight * dpr;
+  canvas.style.width = canvasWidth + 'px';
+  canvas.style.height = canvasHeight + 'px';
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+}
+
+function createDefaultFolder() {
+  const folder = {
+    id: generateId(),
+    name: 'Meu Mapa',
+    createdAt: Date.now(),
+    archived: false,
+    nodes: [{
+      id: generateId(),
+      label: 'Ideia Central',
+      description: '',
+      color: '#5b9aff',
+      x: 0,
+      y: 0,
+      vx: 0,
+      vy: 0,
+      radius: 28,
+      pinned: false
+    }],
+    edges: []
+  };
+  state.folders.push(folder);
+  state.activeFolderId = folder.id;
+  saveData();
+}
+
+// ============================================
+// DATA PERSISTENCE
+// ============================================
+
+function loadData() {
+  try {
+    const saved = localStorage.getItem('mindmap_studio_data');
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      state.folders = parsed.folders || [];
+      state.activeFolderId = parsed.activeFolderId || null;
+      state.zoom = parsed.zoom || 1;
+      state.panX = parsed.panX || 0;
+      state.panY = parsed.panY || 0;
+      state.physicsEnabled = parsed.physicsEnabled !== undefined ? parsed.physicsEnabled : true;
+    }
+  } catch(e) {
+    console.error('Error loading ', e);
+  }
+}
+
+let saveTimeout = null;
+function saveData() {
+  document.getElementById('savingIndicator').style.display = 'flex';
+  clearTimeout(saveTimeout);
+  saveTimeout = setTimeout(() => {
+    try {
+      const data = {
+        folders: state.folders,
+        activeFolderId: state.activeFolderId,
+        zoom: state.zoom,
+        panX: state.panX,
+        panY: state.panY,
+        physicsEnabled: state.physicsEnabled
+      };
+      localStorage.setItem('mindmap_studio_data', JSON.stringify(data));
+      state.lastSaveTime = Date.now();
+      document.getElementById('savingIndicator').style.display = 'none';
+    } catch(e) {
+      console.error('Error saving:', e);
+      showToast('Erro ao salvar dados', 'error');
+    }
+  }, 300);
+}
+
+// ============================================
+// FOLDER MANAGEMENT
+// ============================================
+
+function createFolder() {
+  showModal('Nova Pasta', 'Nome da pasta', (name) => {
+    if (!name.trim()) return;
+    const folder = {
+      id: generateId(),
+      name: name.trim(),
+      createdAt: Date.now(),
+      archived: false,
+      nodes: [{
+        id: generateId(),
+        label: name.trim(),
+        description: '',
+        color: '#5b9aff',
+        x: 0,
+        y: 0,
+        vx: 0,
+        vy: 0,
+        radius: 28,
+        pinned: false
+      }],
+      edges: []
+    };
+    state.folders.push(folder);
+    state.activeFolderId = folder.id;
+    saveData();
+    renderFolders();
+    renderGraph();
+    showToast('Pasta criada!', 'success');
+  });
+}
+
+function deleteFolder(id, e) {
+  e.stopPropagation();
+  const folder = state.folders.find(f => f.id === id);
+  if (!folder) return;
+  if (!confirm(`Excluir pasta "${folder.name}"?`)) return;
+  state.folders = state.folders.filter(f => f.id !== id);
+  if (state.activeFolderId === id) {
+    state.activeFolderId = state.folders.length > 0 ? state.folders[0].id : null;
+  }
+  saveData();
+  renderFolders();
+  renderGraph();
+  showToast('Pasta excluída', 'info');
+}
+
+function renameFolder(id, e) {
+  e.stopPropagation();
+  const folder = state.folders.find(f => f.id === id);
+  if (!folder) return;
+  showModal('Renomear Pasta', 'Novo nome', (name) => {
+    if (!name.trim()) return;
+    folder.name = name.trim();
+    saveData();
+    renderFolders();
+  }, folder.name);
+}
+
+function selectFolder(id) {
+  state.activeFolderId = id;
+  state.selectedNodeId = null;
+  state.connectionMode = false;
+  closeDetail();
+  saveData();
+  renderFolders();
+  renderGraph();
+  closeSidebar();
+}
+
+function archiveFolder(id, e) {
+  e.stopPropagation();
+  const folder = state.folders.find(f => f.id === id);
+  if (!folder) return;
+  folder.archived = !folder.archived;
+  if (folder.archived && state.activeFolderId === id) {
+    const active = state.folders.find(f => !f.archived);
+    state.activeFolderId = active ? active.id : null;
+  }
+  saveData();
+  renderFolders();
+  renderGraph();
+  showToast(folder.archived ? 'Pasta arquivada' : 'Pasta desarquivada', 'info');
+}
+
+function getActiveFolder() {
+  return state.folders.find(f => f.id === state.activeFolderId);
+}
+
+function filterFolders(query) {
+  const items = document.querySelectorAll('.folder-item');
+  query = query.toLowerCase();
+  items.forEach(item => {
+    const name = item.dataset.name.toLowerCase();
+    item.style.display = name.includes(query) ? '' : 'none';
+  });
+}
+
+function renderFolders() {
+  const list = document.getElementById('foldersList');
+  list.innerHTML = '';
+
+  state.folders.forEach(folder => {
+    const div = document.createElement('div');
+    div.className = 'folder-item' + (folder.id === state.activeFolderId ? ' active' : '');
+    div.dataset.name = folder.name;
+    div.dataset.id = folder.id;
+    div.style.opacity = folder.archived ? '0.5' : '1';
+
+    div.innerHTML = `
+      <div class="folder-name" onclick="selectFolder('${folder.id}')">
+        <span class="folder-icon">${folder.archived ? '📦' : '📁'}</span>
+        <span class="folder-label">${escapeHtml(folder.name)}</span>
+      </div>
+      <span class="folder-count">${folder.nodes.length}</span>
+      <div class="folder-actions">
+        <button onclick="renameFolder('${folder.id}', event)" title="Renomear">✏️</button>
+        <button onclick="archiveFolder('${folder.id}', event)" title="${folder.archived ? 'Desarquivar' : 'Arquivar'}">${folder.archived ? '📦' : '️'}</button>
+        <button onclick="deleteFolder('${folder.id}', event)" title="Excluir">🗑️</button>
+      </div>
+    `;
+
+    list.appendChild(div);
+  });
+
+  updateStats();
+}
+
+function updateStats() {
+  const folder = getActiveFolder();
+  const nodes = folder ? folder.nodes.length : 0;
+  const edges = folder ? folder.edges.length : 0;
+  document.getElementById('statsNodes').textContent = nodes + ' nó' + (nodes !== 1 ? 's' : '');
+  document.getElementById('statsEdges').textContent = edges + ' conexão' + (edges !== 1 ? 'ões' : '');
+}
+
+// ============================================
+// NODE MANAGEMENT
+// ============================================
+
+function addNode(parentId) {
+  const folder = getActiveFolder();
+  if (!folder) { showToast('Selecione uma pasta primeiro', 'error'); return; }
+
+  const center = screenToWorld(canvasWidth / 2, canvasHeight / 2);
+
+  const node = {
+    id: generateId(),
+    label: 'Novo Nó',
+    description: '',
+    color: folder.nodes.length > 0 ? folder.nodes[0].color : '#5b9aff',
+    x: center.x + (Math.random() - 0.5) * 100,
+    y: center.y + (Math.random() - 0.5) * 100,
+    vx: 0,
+    vy: 0,
+    radius: parentId ? 18 : 22,
+    pinned: false
+  };
+
+  folder.nodes.push(node);
+
+  if (parentId) {
+    folder.edges.push({ from: parentId, to: node.id });
+  }
+
+  state.selectedNodeId = node.id;
+  saveData();
+  renderGraph();
+  openDetail(node);
+  showToast('Nó adicionado!', 'success');
+}
+
+function deleteSelectedNode() {
+  if (!state.selectedNodeId) return;
+  const folder = getActiveFolder();
+  if (!folder) return;
+
+  if (!confirm('Excluir este nó e suas conexões?')) return;
+
+  folder.nodes = folder.nodes.filter(n => n.id !== state.selectedNodeId);
+  folder.edges = folder.edges.filter(e => e.from !== state.selectedNodeId && e.to !== state.selectedNodeId);
+  state.selectedNodeId = null;
+  closeDetail();
+  saveData();
+  renderGraph();
+  renderFolders();
+  showToast('Nó excluído', 'info');
+}
+
+function archiveSelectedNode() {
+  const folder = getActiveFolder();
+  if (!folder || !state.selectedNodeId) return;
+
+  const node = folder.nodes.find(n => n.id === state.selectedNodeId);
+  if (!node) return;
+
+  node.label = '📦 ' + node.label;
+  node.archived = true;
+  saveData();
+  renderGraph();
+  showToast('Nó arquivado', 'info');
+}
+
+function duplicateNode(nodeId) {
+  const folder = getActiveFolder();
+  if (!folder) return;
+  const source = folder.nodes.find(n => n.id === nodeId);
+  if (!source) return;
+
+  const node = {
+    id: generateId(),
+    label: source.label + ' (cópia)',
+    description: source.description,
+    color: source.color,
+    x: source.x + 40,
+    y: source.y + 40,
+    vx: 0,
+    vy: 0,
+    radius: source.radius,
+    pinned: false
+  };
+
+  folder.nodes.push(node);
+  saveData();
+  renderGraph();
+  showToast('Nó duplicado!', 'success');
+}
+
+function selectNode(nodeId) {
+  state.selectedNodeId = nodeId;
+  const folder = getActiveFolder();
+  if (!folder) return;
+  const node = folder.nodes.find(n => n.id === nodeId);
+  if (node) {
+    openDetail(node);
+  }
+  renderGraph();
+}
+
+function getNodeById(folder, id) {
+  return folder ? folder.nodes.find(n => n.id === id) : null;
+}
+
+// ============================================
+// CONNECTION MANAGEMENT
+// ============================================
+
+function startConnectionMode() {
+  state.connectionMode = !state.connectionMode;
+  state.selectedNodeId = null;
+  closeDetail();
+  renderGraph();
+  if (state.connectionMode) {
+    showToast('Modo conexão: clique em dois nós para conectá-los', 'info');
+  }
+}
+
+function toggleConnection(nodeId) {
+  const folder = getActiveFolder();
+  if (!folder) return;
+
+  if (state.connectionMode) {
+    if (!state.selectedNodeId) {
+      state.selectedNodeId = nodeId;
+      renderGraph();
+    } else {
+      if (state.selectedNodeId === nodeId) {
+        state.selectedNodeId = null;
+        renderGraph();
+        return;
+      }
+
+      const exists = folder.edges.find(e =>
+        (e.from === state.selectedNodeId && e.to === nodeId) ||
+        (e.from === nodeId && e.to === state.selectedNodeId)
+      );
+
+      if (exists) {
+        folder.edges = folder.edges.filter(e => e !== exists);
+        showToast('Conexão removida', 'info');
+      } else {
+        folder.edges.push({ from: state.selectedNodeId, to: nodeId });
+        showToast('Nós conectados!', 'success');
+      }
+
+      state.selectedNodeId = null;
+      state.connectionMode = false;
+      saveData();
+      renderGraph();
+    }
+  } else {
+    selectNode(nodeId);
+  }
+}
+
+// ============================================
+// DETAIL PANEL
+// ============================================
+
+function openDetail(node) {
+  const panel = document.getElementById('detailPanel');
+  panel.classList.add('visible');
+  document.getElementById('nodeNameInput').value = node.label;
+  document.getElementById('nodeDescInput').value = node.description || '';
+  updateColorPickerSelection(node.color);
+}
+
+function closeDetail() {
+  document.getElementById('detailPanel').classList.remove('visible');
+}
+
+function updateNodeName() {
+  const folder = getActiveFolder();
+  if (!folder || !state.selectedNodeId) return;
+  const node = folder.nodes.find(n => n.id === state.selectedNodeId);
+  if (node) {
+    node.label = document.getElementById('nodeNameInput').value;
+    saveData();
+    renderGraph();
+    renderFolders();
+  }
+}
+
+function updateNodeDesc() {
+  const folder = getActiveFolder();
+  if (!folder || !state.selectedNodeId) return;
+  const node = folder.nodes.find(n => n.id === state.selectedNodeId);
+  if (node) {
+    node.description = document.getElementById('nodeDescInput').value;
+    saveData();
+  }
+}
+
+function updateNodeColor(color) {
+  const folder = getActiveFolder();
+  if (!folder || !state.selectedNodeId) return;
+  const node = folder.nodes.find(n => n.id === state.selectedNodeId);
+  if (node) {
+    node.color = color;
+    updateColorPickerSelection(color);
+    saveData();
+    renderGraph();
+  }
+}
+
+function buildColorPicker() {
+  const picker = document.getElementById('colorPicker');
+  picker.innerHTML = '';
+  NODE_COLORS.forEach(color => {
+    const dot = document.createElement('div');
+    dot.className = 'color-dot';
+    dot.style.background = color;
+    dot.dataset.color = color;
+    dot.onclick = () => updateNodeColor(color);
+    picker.appendChild(dot);
+  });
+}
+
+function updateColorPickerSelection(color) {
+  document.querySelectorAll('.color-dot').forEach(d => {
+    d.classList.toggle('selected', d.dataset.color === color);
+  });
+}
+
+// ============================================
+// PHYSICS ENGINE
+// ============================================
+
+function simulatePhysics() {
+  if (!state.physicsEnabled) return;
+  const folder = getActiveFolder();
+  if (!folder || folder.nodes.length < 2) return;
+
+  const nodes = folder.nodes;
+  const repulsion = 8000;
+  const attraction = 0.008;
+  const damping = 0.85;
+  const centerForce = 0.001;
+  const cx = 0, cy = 0;
+
+  // Repulsion between all nodes
+  for (let i = 0; i < nodes.length; i++) {
+    nodes[i].vx = 0;
+    nodes[i].vy = 0;
+    for (let j = i + 1; j < nodes.length; j++) {
+      const dx = nodes[j].x - nodes[i].x;
+      const dy = nodes[j].y - nodes[i].y;
+      const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+      const force = repulsion / (dist * dist);
+      const fx = (dx / dist) * force;
+      const fy = (dy / dist) * force;
+      nodes[i].vx -= fx;
+      nodes[i].vy -= fy;
+      nodes[j].vx += fx;
+      nodes[j].vy += fy;
+    }
+  }
+
+  // Attraction along edges
+  folder.edges.forEach(edge => {
+    const a = nodes.find(n => n.id === edge.from);
+    const b = nodes.find(n => n.id === edge.to);
+    if (!a || !b) return;
+    const dx = b.x - a.x;
+    const dy = b.y - a.y;
+    const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+    const force = dist * attraction;
+    const fx = (dx / dist) * force;
+    const fy = (dy / dist) * force;
+    a.vx += fx;
+    a.vy += fy;
+    b.vx -= fx;
+    b.vy -= fy;
+  });
+
+  // Center gravity + update
+  nodes.forEach(node => {
+    if (node.pinned || node === state.draggingNode) return;
+    node.vx += (cx - node.x) * centerForce;
+    node.vy += (cy - node.y) * centerForce;
+    node.vx *= damping;
+    node.vy *= damping;
+    node.x += node.vx;
+    node.y += node.vy;
+  });
+}
+
+// ============================================
+// RENDERING
+// ============================================
+
+function renderGraph() {
+  ctx.clearRect(0, 0, canvasWidth, canvasHeight);
+
+  const folder = getActiveFolder();
+  if (!folder) {
+    document.getElementById('emptyState').style.display = 'flex';
+    return;
+  }
+  document.getElementById('emptyState').style.display = 'none';
+
+  ctx.save();
+  ctx.translate(canvasWidth / 2 + state.panX, canvasHeight / 2 + state.panY);
+  ctx.scale(state.zoom, state.zoom);
+
+  // Draw edges
+  folder.edges.forEach(edge => {
+    const from = getNodeById(folder, edge.from);
+    const to = getNodeById(folder, edge.to);
+    if (!from || !to) return;
+
+    const isActive = state.connectionMode && state.selectedNodeId &&
+      (state.selectedNodeId === edge.from || state.selectedNodeId === edge.to);
+
+    ctx.beginPath();
+    ctx.moveTo(from.x, from.y);
+    ctx.lineTo(to.x, to.y);
+
+    if (isActive) {
+      ctx.strokeStyle = 'rgba(108, 92, 231, 0.8)';
+      ctx.lineWidth = 3;
+    } else {
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.12)';
+      ctx.lineWidth = 1.5;
+    }
+    ctx.stroke();
+
+    // Arrowhead
+    const angle = Math.atan2(to.y - from.y, to.x - from.x);
+    const arrowLen = 12;
+    const tipX = to.x - Math.cos(angle) * (to.radius + 2);
+    const tipY = to.y - Math.sin(angle) * (to.radius + 2);
+
+    ctx.beginPath();
+    ctx.moveTo(tipX, tipY);
+    ctx.lineTo(tipX - arrowLen * Math.cos(angle - 0.4), tipY - arrowLen * Math.sin(angle - 0.4));
+    ctx.lineTo(tipX - arrowLen * Math.cos(angle + 0.4), tipY - arrowLen * Math.sin(angle + 0.4));
+    ctx.closePath();
+    ctx.fillStyle = isActive ? 'rgba(108, 92, 231, 0.8)' : 'rgba(255, 255, 255, 0.12)';
+    ctx.fill();
+  });
+
+  // Draw pending connection line
+  if (state.connectionMode && state.selectedNodeId && state.tempMousePos) {
+    const from = getNodeById(folder, state.selectedNodeId);
+    if (from) {
+      ctx.beginPath();
+      ctx.setLineDash([5, 5]);
+      ctx.moveTo(from.x, from.y);
+      ctx.lineTo(state.tempMousePos.x, state.tempMousePos.y);
+      ctx.strokeStyle = 'rgba(108, 92, 231, 0.5)';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+  }
+
+  // Draw nodes
+  folder.nodes.forEach(node => {
+    const isSelected = state.selectedNodeId === node.id;
+    const isConnectionTarget = state.connectionMode && state.selectedNodeId && state.selectedNodeId !== node.id;
+
+    // Glow
+    if (isSelected || isConnectionTarget) {
+      ctx.beginPath();
+      ctx.arc(node.x, node.y, node.radius + 8, 0, Math.PI * 2);
+      const glow = ctx.createRadialGradient(node.x, node.y, node.radius, node.x, node.y, node.radius + 8);
+      glow.addColorStop(0, node.color + '60');
+      glow.addColorStop(1, 'transparent');
+      ctx.fillStyle = glow;
+      ctx.fill();
+    }
+
+    // Node body
+    ctx.beginPath();
+    ctx.arc(node.x, node.y, node.radius, 0, Math.PI * 2);
+
+    const grad = ctx.createRadialGradient(node.x - node.radius * 0.3, node.y - node.radius * 0.3, 0, node.x, node.y, node.radius);
+    grad.addColorStop(0, lightenColor(node.color, 30));
+    grad.addColorStop(1, node.color);
+    ctx.fillStyle = grad;
+    ctx.fill();
+
+    // Border
+    ctx.strokeStyle = isSelected ? '#ffffff' : 'rgba(255,255,255,0.2)';
+    ctx.lineWidth = isSelected ? 2.5 : 1;
+    ctx.stroke();
+
+    // Archived indicator
+    if (node.archived) {
+      ctx.fillStyle = 'rgba(0,0,0,0.3)';
+      ctx.fill();
+    }
+
+    // Label
+    ctx.fillStyle = isSelected ? '#ffffff' : 'rgba(255,255,255,0.9)';
+    ctx.font = `${node.radius > 22 ? '600' : '500'} ${Math.max(10, node.radius * 0.55)}px -apple-system, sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+
+    // Truncate label
+    let label = node.label;
+    const maxChars = Math.floor(node.radius * 1.2);
+    if (label.length > maxChars && node.radius <= 22) {
+      label = label.substring(0, maxChars) + '…';
+    }
+
+    // Text with shadow
+    ctx.shadowColor = 'rgba(0,0,0,0.5)';
+    ctx.shadowBlur = 4;
+    ctx.fillText(label, node.x, node.y);
+    ctx.shadowBlur = 0;
+  });
+
+  ctx.restore();
+}
+
+function animate() {
+  simulatePhysics();
+  renderGraph();
+  state.animFrame = requestAnimationFrame(animate);
+}
+
+// ============================================
+// COORDINATE TRANSFORMS
+// ============================================
+
+function screenToWorld(sx, sy) {
+  return {
+    x: (sx - canvasWidth / 2 - state.panX) / state.zoom,
+    y: (sy - canvasHeight / 2 - state.panY) / state.zoom
+  };
+}
+
+function worldToScreen(wx, wy) {
+  return {
+    x: wx * state.zoom + canvasWidth / 2 + state.panX,
+    y: wy * state.zoom + canvasHeight / 2 + state.panY
+  };
+}
+
+function getNodeAtPosition(wx, wy) {
+  const folder = getActiveFolder();
+  if (!folder) return null;
+  for (let i = folder.nodes.length - 1; i >= 0; i--) {
+    const node = folder.nodes[i];
+    const dx = node.x - wx;
+    const dy = node.y - wy;
+    if (dx * dx + dy * dy <= node.radius * node.radius + 100) {
+      return node;
+    }
+  }
+  return null;
+}
+
+// ============================================
+// ZOOM & PAN
+// ============================================
+
+function setZoom(newZoom) {
+  state.zoom = Math.max(0.1, Math.min(5, newZoom));
+  document.getElementById('zoomLabel').textContent = Math.round(state.zoom * 100) + '%';
+  saveData();
+  renderGraph();
+}
+
+function zoomIn() { setZoom(state.zoom * 1.2); }
+function zoomOut() { setZoom(state.zoom / 1.2); }
+function resetZoom() { state.panX = 0; state.panY = 0; setZoom(1); }
+
+function centerGraph() {
+  state.panX = 0;
+  state.panY = 0;
+  setZoom(1);
+  saveData();
+}
+
+function togglePhysics() {
+  state.physicsEnabled = !state.physicsEnabled;
+  document.getElementById('physicsIcon').textContent = state.physicsEnabled ? '⚡' : '⚡';
+  document.getElementById('physicsIcon').style.opacity = state.physicsEnabled ? '1' : '0.4';
+  saveData();
+  showToast(state.physicsEnabled ? 'Física ativada' : 'Física desativada', 'info');
+}
+
+// ============================================
+// EVENT LISTENERS
+// ============================================
+
+function setupEventListeners() {
+  // Resize
+  window.addEventListener('resize', () => {
+    resizeCanvas();
+    renderGraph();
+  });
+
+  // Canvas events
+  canvas.addEventListener('mousedown', onMouseDown);
+  canvas.addEventListener('mousemove', onMouseMove);
+  canvas.addEventListener('mouseup', onMouseUp);
+  canvas.addEventListener('wheel', onWheel, { passive: false });
+  canvas.addEventListener('contextmenu', onContextMenu);
+
+  // Touch events
+  canvas.addEventListener('touchstart', onTouchStart, { passive: false });
+  canvas.addEventListener('touchmove', onTouchMove, { passive: false });
+  canvas.addEventListener('touchend', onTouchEnd);
+
+  // Close context menu
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('.context-menu')) {
+      document.getElementById('contextMenu').classList.remove('visible');
+    }
+  });
+
+  // Keyboard shortcuts
+  document.addEventListener('keydown', (e) => {
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+
+    switch(e.key.toLowerCase()) {
+      case 'n':
+        e.preventDefault();
+        addNode();
+        break;
+      case 'c':
+        e.preventDefault();
+        startConnectionMode();
+        break;
+      case 'delete':
+      case 'backspace':
+        if (state.selectedNodeId) {
+          e.preventDefault();
+          deleteSelectedNode();
         }
+        break;
+      case 'escape':
+        state.connectionMode = false;
+        state.selectedNodeId = null;
+        closeDetail();
+        document.getElementById('contextMenu').classList.remove('visible');
+        renderGraph();
+        break;
+    }
+  });
 
-        // --- SISTEMA DE PASTAS ---
-        function renderFolders() {
-            const grid = document.getElementById('foldersGrid');
-            grid.innerHTML = '';
-            
-            appData.folders.forEach(folder => {
-                const nodeCount = folder.nodes ? folder.nodes.length : 0;
-                const edgeCount = folder.edges ? folder.edges.length : 0;
-                
-                const card = document.createElement('div');
-                card.className = 'folder-card';
-                card.onclick = (e) => { if(!e.target.closest('button')) openGraph(folder.id); };
-                
-                card.innerHTML = `
-                    <div>
-                        <h3>${folder.name}</h3>
-                        <div class="folder-stats">${nodeCount} Nós • ${edgeCount} Sinapses</div>
-                    </div>
-                    <div class="card-actions">
-                        <button class="btn" onclick="editFolder('${folder.id}')">⚙️</button>
-                        <button class="btn danger" onclick="deleteFolder('${folder.id}')">✕</button>
-                    </div>
-                `;
-                grid.appendChild(card);
-            });
+  // Sidebar
+  document.getElementById('hamburgerBtn').addEventListener('click', openSidebar);
+  document.getElementById('sidebarOverlay').addEventListener('click', closeSidebar);
+}
+
+let lastTouchDist = 0;
+let lastTouchCenter = { x: 0, y: 0 };
+
+function onMouseDown(e) {
+  const rect = canvas.getBoundingClientRect();
+  const x = e.clientX - rect.left;
+  const y = e.clientY - rect.top;
+  const worldPos = screenToWorld(x, y);
+
+  // Right click - context menu
+  if (e.button === 2) return;
+
+  const node = getNodeAtPosition(worldPos.x, worldPos.y);
+
+  if (node) {
+    if (state.connectionMode) {
+      toggleConnection(node.id);
+    } else {
+      state.draggingNode = node;
+      state.dragOffsetX = node.x - worldPos.x;
+      state.dragOffsetY = node.y - worldPos.y;
+      selectNode(node.id);
+    }
+  } else {
+    if (state.connectionMode) {
+      state.selectedNodeId = null;
+      renderGraph();
+    } else {
+      state.isPanning = true;
+      state.panStartX = e.clientX - state.panX;
+      state.panStartY = e.clientY - state.panY;
+      state.selectedNodeId = null;
+      closeDetail();
+      renderGraph();
+    }
+  }
+}
+
+function onMouseMove(e) {
+  const rect = canvas.getBoundingClientRect();
+  const x = e.clientX - rect.left;
+  const y = e.clientY - rect.top;
+  const worldPos = screenToWorld(x, y);
+
+  if (state.draggingNode) {
+    state.draggingNode.x = worldPos.x + state.dragOffsetX;
+    state.draggingNode.y = worldPos.y + state.dragOffsetY;
+    state.draggingNode.pinned = true;
+    saveData();
+  } else if (state.isPanning) {
+    state.panX = e.clientX - state.panStartX;
+    state.panY = e.clientY - state.panStartY;
+  } else if (state.connectionMode && state.selectedNodeId) {
+    state.tempMousePos = worldPos;
+  }
+}
+
+function onMouseUp(e) {
+  if (state.draggingNode) {
+    state.draggingNode.pinned = false;
+    state.draggingNode = null;
+    saveData();
+  }
+  state.isPanning = false;
+  state.tempMousePos = null;
+}
+
+function onWheel(e) {
+  e.preventDefault();
+  const delta = e.deltaY > 0 ? 0.9 : 1.1;
+  setZoom(state.zoom * delta);
+}
+
+function onContextMenu(e) {
+  e.preventDefault();
+  const rect = canvas.getBoundingClientRect();
+  const worldPos = screenToWorld(e.clientX - rect.left, e.clientY - rect.top);
+  const node = getNodeAtPosition(worldPos.x, worldPos.y);
+
+  if (node) {
+    state.contextNodeId = node.id;
+    const menu = document.getElementById('contextMenu');
+    menu.style.left = e.clientX + 'px';
+    menu.style.top = e.clientY + 'px';
+    menu.classList.add('visible');
+  } else {
+    document.getElementById('contextMenu').classList.remove('visible');
+  }
+}
+
+function onTouchStart(e) {
+  e.preventDefault();
+  const touches = e.touches;
+
+  if (touches.length === 1) {
+    const rect = canvas.getBoundingClientRect();
+    const x = touches[0].clientX - rect.left;
+    const y = touches[0].clientY - rect.top;
+    const worldPos = screenToWorld(x, y);
+
+    const node = getNodeAtPosition(worldPos.x, worldPos.y);
+
+    if (node) {
+      if (state.connectionMode) {
+        toggleConnection(node.id);
+      } else {
+        state.draggingNode = node;
+        state.dragOffsetX = node.x - worldPos.x;
+        state.dragOffsetY = node.y - worldPos.y;
+        selectNode(node.id);
+      }
+    } else {
+      state.isPanning = true;
+      state.panStartX = touches[0].clientX - state.panX;
+      state.panStartY = touches[0].clientY - state.panY;
+      state.selectedNodeId = null;
+      closeDetail();
+      renderGraph();
+    }
+  } else if (touches.length === 2) {
+    const dx = touches[0].clientX - touches[1].clientX;
+    const dy = touches[0].clientY - touches[1].clientY;
+    lastTouchDist = Math.sqrt(dx * dx + dy * dy);
+    lastTouchCenter = {
+      x: (touches[0].clientX + touches[1].clientX) / 2,
+      y: (touches[0].clientY + touches[1].clientY) / 2
+    };
+  }
+}
+
+function onTouchMove(e) {
+  e.preventDefault();
+  const touches = e.touches;
+
+  if (touches.length === 1) {
+    const rect = canvas.getBoundingClientRect();
+    const x = touches[0].clientX - rect.left;
+    const y = touches[0].clientY - rect.top;
+    const worldPos = screenToWorld(x, y);
+
+    if (state.draggingNode) {
+      state.draggingNode.x = worldPos.x + state.dragOffsetX;
+      state.draggingNode.y = worldPos.y + state.dragOffsetY;
+      state.draggingNode.pinned = true;
+      saveData();
+    } else if (state.isPanning) {
+      state.panX = touches[0].clientX - state.panStartX;
+      state.panY = touches[0].clientY - state.panStartY;
+    }
+  } else if (touches.length === 2) {
+    const dx = touches[0].clientX - touches[1].clientX;
+    const dy = touches[0].clientY - touches[1].clientY;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+
+    if (lastTouchDist > 0) {
+      const scale = dist / lastTouchDist;
+      setZoom(state.zoom * scale);
+
+      const cx = (touches[0].clientX + touches[1].clientX) / 2;
+      const cy = (touches[0].clientY + touches[1].clientY) / 2;
+      const dcx = cx - lastTouchCenter.x;
+      const dcy = cy - lastTouchCenter.y;
+      state.panX += dcx;
+      state.panY += dcy;
+      lastTouchCenter = { x: cx, y: cy };
+    }
+
+    lastTouchDist = dist;
+  }
+}
+
+function onTouchEnd(e) {
+  if (state.draggingNode) {
+    state.draggingNode.pinned = false;
+    state.draggingNode = null;
+    saveData();
+  }
+  state.isPanning = false;
+  lastTouchDist = 0;
+}
+
+// ============================================
+// CONTEXT MENU ACTIONS
+// ============================================
+
+function contextEditNode() {
+  document.getElementById('contextMenu').classList.remove('visible');
+  if (state.contextNodeId) selectNode(state.contextNodeId);
+}
+
+function contextAddChild() {
+  document.getElementById('contextMenu').classList.remove('visible');
+  if (state.contextNodeId) addNode(state.contextNodeId);
+}
+
+function contextDuplicate() {
+  document.getElementById('contextMenu').classList.remove('visible');
+  if (state.contextNodeId) duplicateNode(state.contextNodeId);
+}
+
+function contextArchiveNode() {
+  document.getElementById('contextMenu').classList.remove('visible');
+  if (state.contextNodeId) {
+    state.selectedNodeId = state.contextNodeId;
+    archiveSelectedNode();
+  }
+}
+
+function contextDeleteNode() {
+  document.getElementById('contextMenu').classList.remove('visible');
+  if (state.contextNodeId) {
+    state.selectedNodeId = state.contextNodeId;
+    deleteSelectedNode();
+  }
+}
+
+// ============================================
+// EXPORT / IMPORT
+// ============================================
+
+function exportBackup() {
+  const data = {
+    version: '1.0',
+    exportDate: new Date().toISOString(),
+    folders: state.folders,
+    activeFolderId: state.activeFolderId
+  };
+
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `mindmap-backup-${new Date().toISOString().slice(0,10)}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+  showToast('Backup exportado!', 'success');
+}
+
+function exportFolderJSON() {
+  const folder = getActiveFolder();
+  if (!folder) { showToast('Selecione uma pasta', 'error'); return; }
+
+  const blob = new Blob([JSON.stringify(folder, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `${folder.name.replace(/[^a-zA-Z0-9]/g, '_')}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+  showToast('Mapa exportado!', 'success');
+}
+
+function importBackup() {
+  document.getElementById('fileInput').click();
+}
+
+function handleImport(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try {
+      const data = JSON.parse(e.target.result);
+
+      if (data.version === '1.0') {
+        // Full backup
+        if (data.folders && Array.isArray(data.folders)) {
+          state.folders = data.folders;
+          state.activeFolderId = data.activeFolderId || state.folders[0]?.id;
         }
+      } else if (data.nodes && data.edges !== undefined) {
+        // Single folder import
+        const folder = {
+          id: generateId(),
+          name: file.name.replace('.json', ''),
+          createdAt: Date.now(),
+          archived: false,
+          nodes: data.nodes,
+          edges: data.edges
+        };
+        state.folders.push(folder);
+        state.activeFolderId = folder.id;
+      } else {
+        showToast('Formato de arquivo inválido', 'error');
+        return;
+      }
 
-        // --- MOTOR DO MAPA MENTAL (VIS-NETWORK) ---
-        function openGraph(folderId) {
-            activeFolderId = folderId;
-            const folder = appData.folders.find(f => f.id === folderId);
-            if (!folder.nodes) folder.nodes = [];
-            if (!folder.edges) folder.edges = [];
+      saveData();
+      renderFolders();
+      renderGraph();
+      showToast('Dados importados com sucesso!', 'success');
+    } catch(err) {
+      console.error(err);
+      showToast('Erro ao importar arquivo', 'error');
+    }
+  };
+  reader.readAsText(file);
+  event.target.value = '';
+}
 
-            document.getElementById('graphTitle').textContent = folder.name;
-            document.getElementById('homeView').style.display = 'none';
-            document.getElementById('graphContainer').style.display = 'block';
+// ============================================
+// UI HELPERS
+// ============================================
 
-            // Reseta UI
-            document.getElementById('contextTools').style.display = 'none';
-            document.getElementById('btnAddNode').style.display = 'block';
-            isConnectingMode = false;
-            document.getElementById('btnEdgeMode').style.background = '';
-            
-            initNetwork(folder);
-        }
+function showModal(title, placeholder, onConfirm, defaultValue) {
+  document.getElementById('modalTitle').textContent = title;
+  document.getElementById('modalInput').placeholder = placeholder;
+  document.getElementById('modalInput').value = defaultValue || '';
+  document.getElementById('modalOverlay').classList.add('visible');
+  document.getElementById('modalInput').focus();
 
-        function initNetwork(folder) {
-            const container = document.getElementById('mynetwork');
-            
-            nodesDataset = new vis.DataSet(folder.nodes);
-            edgesDataset = new vis.DataSet(folder.edges);
+  const confirmBtn = document.getElementById('modalConfirm');
+  confirmBtn.onclick = () => {
+    const value = document.getElementById('modalInput').value;
+    closeModal();
+    onConfirm(value);
+  };
 
-            updateNodeWeights(); // Calcula o tamanho dos nós baseado nas conexões
+  document.getElementById('modalInput').onkeydown = (e) => {
+    if (e.key === 'Enter') confirmBtn.click();
+    if (e.key === 'Escape') closeModal();
+  };
+}
 
-            const data = { nodes: nodesDataset, edges: edgesDataset };
+function closeModal() {
+  document.getElementById('modalOverlay').classList.remove('visible');
+}
 
-            const options = {
-                nodes: {
-                    shape: 'dot',
-                    scaling: { min: 10, max: 35, label: { enabled: true, min: 14, max: 24 } },
-                    font: { color: '#e2e8f0', face: 'Segoe UI', strokeWidth: 4, strokeColor: '#050508' },
-                    color: {
-                        background: '#1e293b', border: '#38bdf8',
-                        highlight: { background: '#38bdf8', border: '#fff' }
-                    },
-                    borderWidth: 2,
-                    shadow: { enabled: true, color: 'rgba(56, 189, 248, 0.4)', size: 15, x: 0, y: 0 }
-                },
-                edges: {
-                    width: 2,
-                    color: { color: 'rgba(56, 189, 248, 0.3)', highlight: '#38bdf8' },
-                    smooth: { type: 'continuous', roundness: 0.5 }
-                },
-                physics: {
-                    solver: 'forceAtlas2Based',
-                    forceAtlas2Based: { gravitationalConstant: -100, centralGravity: 0.015, springLength: 150, springConstant: 0.05 },
-                    minVelocity: 0.75
-                },
-                interaction: { hover: true, selectConnectedEdges: false },
-                manipulation: {
-                    enabled: false, // Escondemos a UI padrão feia do vis.js
-                    addEdge: function (data, callback) {
-                        if (data.from !== data.to) {
-                            data.id = 'e_' + Date.now();
-                            callback(data);
-                            updateNodeWeights();
-                            saveCurrentGraphData();
-                        }
-                        toggleEdgeMode(); // Desliga o modo após conectar
-                    }
-                }
-            };
+function showToast(message, type = 'info') {
+  const container = document.getElementById('toastContainer');
+  const toast = document.createElement('div');
+  toast.className = `toast ${type}`;
+  const icons = { success: '✅', error: '❌', info: 'ℹ️' };
+  toast.innerHTML = `<span>${icons[type] || ''}</span> ${message}`;
+  container.appendChild(toast);
+  setTimeout(() => toast.remove(), 3000);
+}
 
-            network = new vis.Network(container, data, options);
+function openSidebar() {
+  document.getElementById('sidebar').classList.add('open');
+  document.getElementById('sidebarOverlay').classList.add('visible');
+}
 
-            // Eventos de Seleção para mostrar/esconder botões de edição
-            network.on("selectNode", handleSelection);
-            network.on("deselectNode", handleSelection);
-            
-            // Double click para editar rapidamente (como no PC)
-            network.on("doubleClick", function(params) {
-                if(params.nodes.length > 0) editSelectedNode();
-            });
-        }
+function closeSidebar() {
+  document.getElementById('sidebar').classList.remove('open');
+  document.getElementById('sidebarOverlay').classList.remove('visible');
+}
 
-        // --- INTELIGÊNCIA: ESCALA DINÂMICA DE NÓS ---
-        function updateNodeWeights() {
-            // Conta as conexões (degree) de cada nó
-            const degrees = {};
-            edgesDataset.get().forEach(edge => {
-                degrees[edge.from] = (degrees[edge.from] || 0) + 1;
-                degrees[edge.to] = (degrees[edge.to] || 0) + 1;
-            });
+// ============================================
+// UTILITIES
+// ============================================
 
-            // Atualiza o "value" que o Vis.js usa para escalar o tamanho magicamente
-            const updates = nodesDataset.get().map(node => {
-                const deg = degrees[node.id] || 0;
-                return { 
-                    id: node.id, 
-                    value: deg === 0 ? 1 : deg * 2, // Se não tem conexão é pequeno, senão cresce
-                    color: { 
-                        // Nós muito conectados ficam mais brilhantes
-                        border: deg > 2 ? '#60a5fa' : '#38bdf8',
-                        background: deg > 2 ? 'rgba(56, 189, 248, 0.2)' : '#1e293b'
-                    }
-                };
-            });
-            nodesDataset.update(updates);
-        }
+function generateId() {
+  return 'n_' + Math.random().toString(36).substr(2, 9) + Date.now().toString(36);
+}
 
-        // --- CONTROLES DE INTERFACE DO GRAFO ---
-        function handleSelection() {
-            const selectedNodes = network.getSelectedNodes();
-            const tools = document.getElementById('contextTools');
-            const btnAdd = document.getElementById('btnAddNode');
-            
-            if (selectedNodes.length > 0) {
-                tools.style.display = 'flex';
-                btnAdd.style.display = 'none'; // Esconde botão de adicionar para dar espaço
-            } else {
-                tools.style.display = 'none';
-                btnAdd.style.display = 'block';
-            }
-        }
+function escapeHtml(text) {
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
 
-        function toggleEdgeMode() {
-            isConnectingMode = !isConnectingMode;
-            const status = document.getElementById('actionStatus');
-            const btn = document.getElementById('btnEdgeMode');
+function lightenColor(hex, percent) {
+  const num = parseInt(hex.replace('#', ''), 16);
+  const r = Math.min(255, (num >> 16) + percent);
+  const g = Math.min(255, ((num >> 8) & 0x00FF) + percent);
+  const b = Math.min(255, (num & 0x0000FF) + percent);
+  return `rgb(${r},${g},${b})`;
+}
 
-            if (isConnectingMode) {
-                network.addEdgeMode();
-                status.style.opacity = '1';
-                btn.style.background = 'rgba(56, 189, 248, 0.3)';
-                btn.textContent = 'Cancelar Conexão';
-            } else {
-                network.disableEditMode();
-                status.style.opacity = '0';
-                btn.style.background = '';
-                btn.textContent = 'Conectar Nós';
-            }
-        }
+// ============================================
+// START
+// ============================================
 
-        function saveCurrentGraphData() {
-            if (!activeFolderId || !nodesDataset) return;
-            const folder = appData.folders.find(f => f.id === activeFolderId);
-            
-            // Pega posição x,y para salvar o layout exatamente como o usuário deixou
-            const nodePositions = network.getPositions();
-            
-            folder.nodes = nodesDataset.get().map(n => ({
-                id: n.id, label: n.label, x: nodePositions[n.id]?.x, y: nodePositions[n.id]?.y
-            }));
-            folder.edges = edgesDataset.get().map(e => ({ id: e.id, from: e.from, to: e.to }));
-            
-            localStorage.setItem(DB_KEY, JSON.stringify(appData));
-        }
-
-        function goHome() {
-            saveCurrentGraphData();
-            if (network) network.destroy();
-            activeFolderId = null;
-            document.getElementById('graphContainer').style.display = 'none';
-            document.getElementById('homeView').style.display = 'block';
-            renderFolders();
-        }
-
-        function deleteSelected() {
-            network.deleteSelected();
-            updateNodeWeights();
-            saveCurrentGraphData();
-            handleSelection(); // atualiza UI
-        }
-
-        // --- MODAIS FLUIDOS (GLASS ANIMATION) ---
-        function openModal(id) {
-            const overlay = document.getElementById(id);
-            const box = overlay.querySelector('.modal');
-            overlay.style.display = 'flex';
-            setTimeout(() => box.classList.add('show'), 10); // Animação de entrada
-        }
-        
-        function closeModals() {
-            document.querySelectorAll('.modal').forEach(m => m.classList.remove('show'));
-            setTimeout(() => {
-                document.querySelectorAll('.modal-overlay').forEach(o => o.style.display = 'none');
-            }, 300); // Aguarda animação de saída
-        }
-
-        // CRUD Pastas
-        function openFolderModal() {
-            document.getElementById('folderModalTitle').textContent = 'Nova Estrutura';
-            document.getElementById('folderId').value = '';
-            document.getElementById('folderName').value = '';
-            openModal('modalFolder');
-            setTimeout(() => document.getElementById('folderName').focus(), 300);
-        }
-
-        function editFolder(id) {
-            const folder = appData.folders.find(f => f.id === id);
-            document.getElementById('folderModalTitle').textContent = 'Ajustar Estrutura';
-            document.getElementById('folderId').value = id;
-            document.getElementById('folderName').value = folder.name;
-            openModal('modalFolder');
-        }
-
-        function saveFolder() {
-            const id = document.getElementById('folderId').value;
-            const name = document.getElementById('folderName').value.trim() || 'Desconhecido';
-
-            if (id) {
-                appData.folders.find(f => f.id === id).name = name;
-            } else {
-                appData.folders.push({ id: 'f_' + Date.now(), name, nodes: [], edges: [] });
-            }
-            localStorage.setItem(DB_KEY, JSON.stringify(appData));
-            closeModals();
-            renderFolders();
-        }
-
-        function deleteFolder(id) {
-            if(confirm('Purgar estrutura de dados permanentemente?')) {
-                appData.folders = appData.folders.filter(f => f.id !== id);
-                localStorage.setItem(DB_KEY, JSON.stringify(appData));
-                renderFolders();
-            }
-        }
-
-        // CRUD Nós
-        function openNodeModal() {
-            document.getElementById('nodeModalTitle').textContent = 'Inserir Conceito';
-            document.getElementById('nodeId').value = '';
-            document.getElementById('nodeLabel').value = '';
-            openModal('modalNode');
-            setTimeout(() => document.getElementById('nodeLabel').focus(), 300);
-        }
-
-        function editSelectedNode() {
-            const selected = network.getSelectedNodes();
-            if (selected.length === 1) {
-                const node = nodesDataset.get(selected[0]);
-                document.getElementById('nodeModalTitle').textContent = 'Alterar Conceito';
-                document.getElementById('nodeId').value = node.id;
-                document.getElementById('nodeLabel').value = node.label;
-                openModal('modalNode');
-            }
-        }
-
-        function saveNode() {
-            const id = document.getElementById('nodeId').value;
-            const label = document.getElementById('nodeLabel').value.trim() || '...';
-
-            if (id) {
-                nodesDataset.update({ id, label });
-            } else {
-                // Adiciona o nó no centro da visualização atual da câmera
-                const viewPosition = network.getViewPosition();
-                nodesDataset.add({ id: 'n_' + Date.now(), label, x: viewPosition.x, y: viewPosition.y });
-            }
-            updateNodeWeights();
-            saveCurrentGraphData();
-            closeModals();
-        }
-
-        // Enter para salvar
-        document.getElementById('folderName').addEventListener('keypress', e => { if (e.key === 'Enter') saveFolder(); });
-        document.getElementById('nodeLabel').addEventListener('keypress', e => { if (e.key === 'Enter') saveNode(); });
-
-        // Inicia UI
-        renderFolders();
-    </script>
+window.addEventListener('DOMContentLoaded', init);
+</script>
 </body>
 </html>
