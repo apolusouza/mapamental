@@ -1,0 +1,531 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Stark Brain - Neural Map</title>
+    <script type="text/javascript" src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+    <style>
+        /* Variáveis de Tema: Estilo Cyber/Glassmorphism */
+        :root {
+            --bg-space: #050508;
+            --glass-bg: rgba(20, 22, 30, 0.6);
+            --glass-border: rgba(255, 255, 255, 0.08);
+            --glass-blur: blur(16px);
+            --text-main: #e2e8f0;
+            --text-muted: #64748b;
+            --accent-glow: #38bdf8;
+            --danger: #ef4444;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Roboto, Helvetica, sans-serif; -webkit-tap-highlight-color: transparent; }
+
+        body {
+            background-color: var(--bg-space);
+            background-image: radial-gradient(circle at 50% 0%, #101524 0%, var(--bg-space) 70%);
+            color: var(--text-main);
+            line-height: 1.6;
+            overflow: hidden; /* Evita scroll no body, o canvas faz o trabalho */
+            height: 100vh;
+            width: 100vw;
+        }
+
+        /* --- VISÃO 1: PASTAS (COFRE) --- */
+        #homeView {
+            height: 100%; overflow-y: auto; padding: 40px 20px; max-width: 1200px; margin: 0 auto;
+        }
+
+        header {
+            display: flex; justify-content: space-between; align-items: center;
+            margin-bottom: 50px;
+        }
+
+        h2 { font-size: 2rem; font-weight: 300; letter-spacing: 1px; color: #fff; }
+
+        .btn {
+            background: var(--glass-bg); backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur);
+            border: 1px solid var(--glass-border); color: var(--text-main);
+            padding: 12px 24px; border-radius: 30px; cursor: pointer; font-size: 14px; font-weight: 500;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+        }
+        .btn:hover { background: rgba(56, 189, 248, 0.1); border-color: var(--accent-glow); box-shadow: 0 0 15px rgba(56, 189, 248, 0.2); transform: translateY(-2px); }
+        .btn:active { transform: translateY(0); }
+        .btn.primary { background: rgba(56, 189, 248, 0.15); border-color: rgba(56, 189, 248, 0.4); color: #fff; }
+        .btn.danger { background: rgba(239, 68, 68, 0.1); border-color: rgba(239, 68, 68, 0.3); color: var(--danger); }
+
+        #foldersGrid {
+            display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 24px;
+        }
+
+        .folder-card {
+            background: var(--glass-bg); backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur);
+            border: 1px solid var(--glass-border); border-radius: 20px; padding: 30px 24px;
+            cursor: pointer; transition: all 0.4s ease; position: relative; overflow: hidden;
+            display: flex; flex-direction: column; justify-content: space-between; min-height: 160px;
+        }
+        .folder-card::before {
+            content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 2px;
+            background: linear-gradient(90deg, transparent, var(--accent-glow), transparent); opacity: 0; transition: opacity 0.4s;
+        }
+        .folder-card:hover { transform: translateY(-5px); border-color: rgba(255,255,255,0.2); box-shadow: 0 20px 40px rgba(0,0,0,0.4); }
+        .folder-card:hover::before { opacity: 1; }
+        
+        .folder-card h3 { font-size: 1.4rem; font-weight: 400; margin-bottom: 8px; }
+        .folder-stats { font-size: 0.9rem; color: var(--accent-glow); opacity: 0.8; }
+        
+        .card-actions { margin-top: 20px; display: flex; justify-content: flex-end; gap: 10px; }
+        .card-actions .btn { padding: 8px 16px; font-size: 12px; border-radius: 12px; }
+
+        /* --- VISÃO 2: MAPA MENTAL (GRAFO) --- */
+        #graphContainer {
+            display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+        }
+        #mynetwork { width: 100%; height: 100%; outline: none; }
+        
+        /* Top Bar */
+        .graph-header {
+            position: absolute; top: 0; left: 0; width: 100%; padding: 20px; z-index: 10;
+            display: flex; justify-content: space-between; align-items: center;
+            background: linear-gradient(to bottom, rgba(5,5,8,0.8), transparent); pointer-events: none;
+        }
+        .graph-header .btn { pointer-events: auto; }
+        .graph-title { font-size: 1.2rem; font-weight: 300; opacity: 0.8; }
+
+        /* Status de Ação (Avisa quando está em modo de conectar) */
+        #actionStatus {
+            position: absolute; top: 80px; left: 50%; transform: translateX(-50%);
+            background: rgba(56, 189, 248, 0.2); border: 1px solid var(--accent-glow);
+            padding: 8px 20px; border-radius: 20px; font-size: 13px; color: #fff;
+            opacity: 0; transition: opacity 0.3s; z-index: 10; pointer-events: none;
+        }
+
+        /* Bottom Dock (Mobile Friendly) */
+        .dock {
+            position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%); z-index: 20;
+            background: var(--glass-bg); backdrop-filter: var(--glass-blur); -webkit-backdrop-filter: var(--glass-blur);
+            border: 1px solid var(--glass-border); padding: 12px; border-radius: 30px;
+            display: flex; gap: 12px; box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+            transition: all 0.3s;
+        }
+
+        .dock .btn { padding: 14px 24px; border-radius: 20px; font-size: 15px; }
+        .dock .btn svg { width: 18px; height: 18px; fill: currentColor; }
+        
+        /* Esconder controles de edição até que um nó seja selecionado */
+        .context-tools { display: none; gap: 12px; border-left: 1px solid var(--glass-border); padding-left: 12px; }
+
+        /* --- MODAIS EFEITO GLASS --- */
+        .modal-overlay {
+            display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.6); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+            z-index: 100; align-items: center; justify-content: center; padding: 20px;
+        }
+        
+        .modal {
+            background: rgba(20, 22, 30, 0.8); border: 1px solid rgba(255,255,255,0.1);
+            padding: 30px; border-radius: 24px; width: 100%; max-width: 420px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5); transform: translateY(20px); opacity: 0;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .modal.show { transform: translateY(0); opacity: 1; }
+        
+        .modal h3 { font-weight: 300; margin-bottom: 25px; font-size: 1.5rem; }
+        
+        .input-group { position: relative; margin-bottom: 25px; }
+        .input-group input {
+            width: 100%; background: rgba(0,0,0,0.3); border: 1px solid var(--glass-border);
+            padding: 16px 20px; border-radius: 16px; color: #fff; font-size: 16px; outline: none; transition: border 0.3s;
+        }
+        .input-group input:focus { border-color: var(--accent-glow); }
+        
+        .modal-buttons { display: flex; justify-content: flex-end; gap: 12px; }
+
+        /* Ajustes Mobile */
+        @media (max-width: 768px) {
+            .dock { width: 90%; justify-content: space-between; padding: 10px; bottom: 20px; }
+            .dock .btn { padding: 12px 16px; font-size: 14px; flex: 1; }
+            .context-tools { border-left: none; padding-left: 0; width: 100%; position: absolute; bottom: 100%; left: 0; margin-bottom: 15px; justify-content: center; }
+            .modal { align-self: flex-end; border-radius: 30px 30px 0 0; margin-bottom: -20px; padding-bottom: 50px; }
+        }
+        
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body>
+
+    <div id="homeView">
+        <header>
+            <h2>Neural Cofre</h2>
+            <button class="btn primary" onclick="openFolderModal()">+ Nova Estrutura</button>
+        </header>
+        <div id="foldersGrid"></div>
+    </div>
+
+    <div id="graphContainer">
+        <div class="graph-header">
+            <button class="btn" onclick="goHome()">← Voltar</button>
+            <div class="graph-title" id="graphTitle">Nome da Pasta</div>
+            <div style="width: 80px;"></div> </div>
+
+        <div id="actionStatus">Arraste de um nó para o outro</div>
+        <div id="mynetwork"></div>
+
+        <div class="dock" id="mainDock">
+            <button class="btn primary" id="btnAddNode" onclick="openNodeModal()">+ Nova Ideia</button>
+            <button class="btn" id="btnEdgeMode" onclick="toggleEdgeMode()">Conectar Nós</button>
+            
+            <div class="context-tools" id="contextTools">
+                <button class="btn" onclick="editSelectedNode()">Editar</button>
+                <button class="btn danger" onclick="deleteSelected()">Deletar</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="modalFolder" class="modal-overlay">
+        <div class="modal" id="modalFolderBox">
+            <h3 id="folderModalTitle">Inicializar Neural</h3>
+            <input type="hidden" id="folderId">
+            <div class="input-group">
+                <input type="text" id="folderName" placeholder="Título (Ex: Projeto X)" autocomplete="off">
+            </div>
+            <div class="modal-buttons">
+                <button class="btn" onclick="closeModals()">Cancelar</button>
+                <button class="btn primary" onclick="saveFolder()">Construir</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="modalNode" class="modal-overlay">
+        <div class="modal" id="modalNodeBox">
+            <h3 id="nodeModalTitle">Inserir Conceito</h3>
+            <input type="hidden" id="nodeId">
+            <div class="input-group">
+                <input type="text" id="nodeLabel" placeholder="Digite a ideia central..." autocomplete="off">
+            </div>
+            <div class="modal-buttons">
+                <button class="btn" onclick="closeModals()">Cancelar</button>
+                <button class="btn primary" onclick="saveNode()">Injetar</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- DADOS E ESTADO ---
+        const DB_KEY = 'stark_brain_data';
+        let appData = JSON.parse(localStorage.getItem(DB_KEY)) || { folders: [] };
+        let activeFolderId = null;
+        
+        let network = null;
+        let nodesDataset = null;
+        let edgesDataset = null;
+        let isConnectingMode = false;
+
+        // Injeta dados de exemplo se for a primeira vez
+        if (appData.folders.length === 0) {
+            appData.folders.push({
+                id: 'lab-core', name: 'Arquitetura Core',
+                nodes: [
+                    { id: 'n1', label: 'IA' }, { id: 'n2', label: 'Machine Learning' },
+                    { id: 'n3', label: 'Redes Neurais' }, { id: 'n4', label: 'VPS' }
+                ],
+                edges: [
+                    { id: 'e1', from: 'n1', to: 'n2' }, { id: 'e2', from: 'n2', to: 'n3' }
+                ]
+            });
+            localStorage.setItem(DB_KEY, JSON.stringify(appData));
+        }
+
+        // --- SISTEMA DE PASTAS ---
+        function renderFolders() {
+            const grid = document.getElementById('foldersGrid');
+            grid.innerHTML = '';
+            
+            appData.folders.forEach(folder => {
+                const nodeCount = folder.nodes ? folder.nodes.length : 0;
+                const edgeCount = folder.edges ? folder.edges.length : 0;
+                
+                const card = document.createElement('div');
+                card.className = 'folder-card';
+                card.onclick = (e) => { if(!e.target.closest('button')) openGraph(folder.id); };
+                
+                card.innerHTML = `
+                    <div>
+                        <h3>${folder.name}</h3>
+                        <div class="folder-stats">${nodeCount} Nós • ${edgeCount} Sinapses</div>
+                    </div>
+                    <div class="card-actions">
+                        <button class="btn" onclick="editFolder('${folder.id}')">⚙️</button>
+                        <button class="btn danger" onclick="deleteFolder('${folder.id}')">✕</button>
+                    </div>
+                `;
+                grid.appendChild(card);
+            });
+        }
+
+        // --- MOTOR DO MAPA MENTAL (VIS-NETWORK) ---
+        function openGraph(folderId) {
+            activeFolderId = folderId;
+            const folder = appData.folders.find(f => f.id === folderId);
+            if (!folder.nodes) folder.nodes = [];
+            if (!folder.edges) folder.edges = [];
+
+            document.getElementById('graphTitle').textContent = folder.name;
+            document.getElementById('homeView').style.display = 'none';
+            document.getElementById('graphContainer').style.display = 'block';
+
+            // Reseta UI
+            document.getElementById('contextTools').style.display = 'none';
+            document.getElementById('btnAddNode').style.display = 'block';
+            isConnectingMode = false;
+            document.getElementById('btnEdgeMode').style.background = '';
+            
+            initNetwork(folder);
+        }
+
+        function initNetwork(folder) {
+            const container = document.getElementById('mynetwork');
+            
+            nodesDataset = new vis.DataSet(folder.nodes);
+            edgesDataset = new vis.DataSet(folder.edges);
+
+            updateNodeWeights(); // Calcula o tamanho dos nós baseado nas conexões
+
+            const data = { nodes: nodesDataset, edges: edgesDataset };
+
+            const options = {
+                nodes: {
+                    shape: 'dot',
+                    scaling: { min: 10, max: 35, label: { enabled: true, min: 14, max: 24 } },
+                    font: { color: '#e2e8f0', face: 'Segoe UI', strokeWidth: 4, strokeColor: '#050508' },
+                    color: {
+                        background: '#1e293b', border: '#38bdf8',
+                        highlight: { background: '#38bdf8', border: '#fff' }
+                    },
+                    borderWidth: 2,
+                    shadow: { enabled: true, color: 'rgba(56, 189, 248, 0.4)', size: 15, x: 0, y: 0 }
+                },
+                edges: {
+                    width: 2,
+                    color: { color: 'rgba(56, 189, 248, 0.3)', highlight: '#38bdf8' },
+                    smooth: { type: 'continuous', roundness: 0.5 }
+                },
+                physics: {
+                    solver: 'forceAtlas2Based',
+                    forceAtlas2Based: { gravitationalConstant: -100, centralGravity: 0.015, springLength: 150, springConstant: 0.05 },
+                    minVelocity: 0.75
+                },
+                interaction: { hover: true, selectConnectedEdges: false },
+                manipulation: {
+                    enabled: false, // Escondemos a UI padrão feia do vis.js
+                    addEdge: function (data, callback) {
+                        if (data.from !== data.to) {
+                            data.id = 'e_' + Date.now();
+                            callback(data);
+                            updateNodeWeights();
+                            saveCurrentGraphData();
+                        }
+                        toggleEdgeMode(); // Desliga o modo após conectar
+                    }
+                }
+            };
+
+            network = new vis.Network(container, data, options);
+
+            // Eventos de Seleção para mostrar/esconder botões de edição
+            network.on("selectNode", handleSelection);
+            network.on("deselectNode", handleSelection);
+            
+            // Double click para editar rapidamente (como no PC)
+            network.on("doubleClick", function(params) {
+                if(params.nodes.length > 0) editSelectedNode();
+            });
+        }
+
+        // --- INTELIGÊNCIA: ESCALA DINÂMICA DE NÓS ---
+        function updateNodeWeights() {
+            // Conta as conexões (degree) de cada nó
+            const degrees = {};
+            edgesDataset.get().forEach(edge => {
+                degrees[edge.from] = (degrees[edge.from] || 0) + 1;
+                degrees[edge.to] = (degrees[edge.to] || 0) + 1;
+            });
+
+            // Atualiza o "value" que o Vis.js usa para escalar o tamanho magicamente
+            const updates = nodesDataset.get().map(node => {
+                const deg = degrees[node.id] || 0;
+                return { 
+                    id: node.id, 
+                    value: deg === 0 ? 1 : deg * 2, // Se não tem conexão é pequeno, senão cresce
+                    color: { 
+                        // Nós muito conectados ficam mais brilhantes
+                        border: deg > 2 ? '#60a5fa' : '#38bdf8',
+                        background: deg > 2 ? 'rgba(56, 189, 248, 0.2)' : '#1e293b'
+                    }
+                };
+            });
+            nodesDataset.update(updates);
+        }
+
+        // --- CONTROLES DE INTERFACE DO GRAFO ---
+        function handleSelection() {
+            const selectedNodes = network.getSelectedNodes();
+            const tools = document.getElementById('contextTools');
+            const btnAdd = document.getElementById('btnAddNode');
+            
+            if (selectedNodes.length > 0) {
+                tools.style.display = 'flex';
+                btnAdd.style.display = 'none'; // Esconde botão de adicionar para dar espaço
+            } else {
+                tools.style.display = 'none';
+                btnAdd.style.display = 'block';
+            }
+        }
+
+        function toggleEdgeMode() {
+            isConnectingMode = !isConnectingMode;
+            const status = document.getElementById('actionStatus');
+            const btn = document.getElementById('btnEdgeMode');
+
+            if (isConnectingMode) {
+                network.addEdgeMode();
+                status.style.opacity = '1';
+                btn.style.background = 'rgba(56, 189, 248, 0.3)';
+                btn.textContent = 'Cancelar Conexão';
+            } else {
+                network.disableEditMode();
+                status.style.opacity = '0';
+                btn.style.background = '';
+                btn.textContent = 'Conectar Nós';
+            }
+        }
+
+        function saveCurrentGraphData() {
+            if (!activeFolderId || !nodesDataset) return;
+            const folder = appData.folders.find(f => f.id === activeFolderId);
+            
+            // Pega posição x,y para salvar o layout exatamente como o usuário deixou
+            const nodePositions = network.getPositions();
+            
+            folder.nodes = nodesDataset.get().map(n => ({
+                id: n.id, label: n.label, x: nodePositions[n.id]?.x, y: nodePositions[n.id]?.y
+            }));
+            folder.edges = edgesDataset.get().map(e => ({ id: e.id, from: e.from, to: e.to }));
+            
+            localStorage.setItem(DB_KEY, JSON.stringify(appData));
+        }
+
+        function goHome() {
+            saveCurrentGraphData();
+            if (network) network.destroy();
+            activeFolderId = null;
+            document.getElementById('graphContainer').style.display = 'none';
+            document.getElementById('homeView').style.display = 'block';
+            renderFolders();
+        }
+
+        function deleteSelected() {
+            network.deleteSelected();
+            updateNodeWeights();
+            saveCurrentGraphData();
+            handleSelection(); // atualiza UI
+        }
+
+        // --- MODAIS FLUIDOS (GLASS ANIMATION) ---
+        function openModal(id) {
+            const overlay = document.getElementById(id);
+            const box = overlay.querySelector('.modal');
+            overlay.style.display = 'flex';
+            setTimeout(() => box.classList.add('show'), 10); // Animação de entrada
+        }
+        
+        function closeModals() {
+            document.querySelectorAll('.modal').forEach(m => m.classList.remove('show'));
+            setTimeout(() => {
+                document.querySelectorAll('.modal-overlay').forEach(o => o.style.display = 'none');
+            }, 300); // Aguarda animação de saída
+        }
+
+        // CRUD Pastas
+        function openFolderModal() {
+            document.getElementById('folderModalTitle').textContent = 'Nova Estrutura';
+            document.getElementById('folderId').value = '';
+            document.getElementById('folderName').value = '';
+            openModal('modalFolder');
+            setTimeout(() => document.getElementById('folderName').focus(), 300);
+        }
+
+        function editFolder(id) {
+            const folder = appData.folders.find(f => f.id === id);
+            document.getElementById('folderModalTitle').textContent = 'Ajustar Estrutura';
+            document.getElementById('folderId').value = id;
+            document.getElementById('folderName').value = folder.name;
+            openModal('modalFolder');
+        }
+
+        function saveFolder() {
+            const id = document.getElementById('folderId').value;
+            const name = document.getElementById('folderName').value.trim() || 'Desconhecido';
+
+            if (id) {
+                appData.folders.find(f => f.id === id).name = name;
+            } else {
+                appData.folders.push({ id: 'f_' + Date.now(), name, nodes: [], edges: [] });
+            }
+            localStorage.setItem(DB_KEY, JSON.stringify(appData));
+            closeModals();
+            renderFolders();
+        }
+
+        function deleteFolder(id) {
+            if(confirm('Purgar estrutura de dados permanentemente?')) {
+                appData.folders = appData.folders.filter(f => f.id !== id);
+                localStorage.setItem(DB_KEY, JSON.stringify(appData));
+                renderFolders();
+            }
+        }
+
+        // CRUD Nós
+        function openNodeModal() {
+            document.getElementById('nodeModalTitle').textContent = 'Inserir Conceito';
+            document.getElementById('nodeId').value = '';
+            document.getElementById('nodeLabel').value = '';
+            openModal('modalNode');
+            setTimeout(() => document.getElementById('nodeLabel').focus(), 300);
+        }
+
+        function editSelectedNode() {
+            const selected = network.getSelectedNodes();
+            if (selected.length === 1) {
+                const node = nodesDataset.get(selected[0]);
+                document.getElementById('nodeModalTitle').textContent = 'Alterar Conceito';
+                document.getElementById('nodeId').value = node.id;
+                document.getElementById('nodeLabel').value = node.label;
+                openModal('modalNode');
+            }
+        }
+
+        function saveNode() {
+            const id = document.getElementById('nodeId').value;
+            const label = document.getElementById('nodeLabel').value.trim() || '...';
+
+            if (id) {
+                nodesDataset.update({ id, label });
+            } else {
+                // Adiciona o nó no centro da visualização atual da câmera
+                const viewPosition = network.getViewPosition();
+                nodesDataset.add({ id: 'n_' + Date.now(), label, x: viewPosition.x, y: viewPosition.y });
+            }
+            updateNodeWeights();
+            saveCurrentGraphData();
+            closeModals();
+        }
+
+        // Enter para salvar
+        document.getElementById('folderName').addEventListener('keypress', e => { if (e.key === 'Enter') saveFolder(); });
+        document.getElementById('nodeLabel').addEventListener('keypress', e => { if (e.key === 'Enter') saveNode(); });
+
+        // Inicia UI
+        renderFolders();
+    </script>
+</body>
+</html>
